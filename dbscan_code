@@ -1,0 +1,82 @@
+# K-distance graph to find the right eps
+nbrs = NearestNeighbors(n_neighbors=5).fit(X_2d)
+distances, _ = nbrs.kneighbors(X_2d)
+dist_sorted = np.sort(distances[:, 4])[::-1]
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(dist_sorted, color='#4C72B0', linewidth=1.5)
+ax.set_title('K-Distance Graph (k=5) — Find Elbow for eps',
+             fontweight='bold')
+ax.set_xlabel('Points sorted by distance')
+ax.set_ylabel('5th Nearest Neighbour Distance')
+plt.tight_layout()
+plt.show()
+
+print("Distance percentiles:")
+for p in [10, 25, 50, 75, 90]:
+    print(f"  {p}th percentile: {np.percentile(dist_sorted, p):.3f}")
+
+# Try different eps values
+eps_values = [0.3, 0.5, 0.8, 1.0, 1.5]
+dbscan_results = {}
+
+for eps in eps_values:
+    db = DBSCAN(eps=eps, min_samples=10)
+    lbl = db.fit_predict(X_2d)
+    nc = len(set(lbl)) - (1 if -1 in lbl else 0)
+    nn = list(lbl).count(-1)
+    if nc > 1:
+        sil = silhouette_score(X_2d, lbl)
+        dbi = davies_bouldin_score(X_2d, lbl)
+        ari = adjusted_rand_score(y_all, lbl)
+    else:
+        sil = dbi = ari = None
+    dbscan_results[eps] = {'labels':lbl,'n_clusters':nc,'n_noise':nn,
+                           'sil':sil,'dbi':dbi,'ari':ari}
+    sil_s = f"{sil:.4f}" if sil else "NaN"
+    print(f"eps={eps}: clusters={nc:2d}  noise={nn:4d}  Sil={sil_s}")
+
+best_eps = 0.8   # 2 meaningful clusters, best silhouette
+db_labels = dbscan_results[best_eps]['labels']
+print(f"\n Best eps: {best_eps}")
+
+# Visualise DBSCAN clusters
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+unique_labels = sorted(set(db_labels))
+cmap = plt.cm.tab10(np.linspace(0, 1, max(len(unique_labels), 1)))
+
+for i, lbl in enumerate(unique_labels):
+    mask = db_labels == lbl
+    label_name = 'Noise' if lbl == -1 else f'Cluster {lbl}'
+    color = 'black' if lbl == -1 else cmap[i]
+    axes[0].scatter(X_2d[mask,0], X_2d[mask,1], c=[color]*int(mask.sum()),
+                    alpha=0.4, s=8, label=label_name)
+axes[0].set_title(f'DBSCAN Clusters (eps={best_eps})', fontweight='bold')
+axes[0].set_xlabel('PC1'); axes[0].set_ylabel('PC2')
+axes[0].legend(fontsize=8, markerscale=3)
+
+valid = [e for e in eps_values if dbscan_results[e]['sil'] is not None]
+axes[1].plot(valid, [dbscan_results[e]['sil'] for e in valid],
+             'bo-', linewidth=2, markersize=6)
+axes[1].set_title('Silhouette Score vs eps', fontweight='bold')
+axes[1].set_xlabel('eps'); axes[1].set_ylabel('Silhouette Score')
+
+plt.suptitle('DBSCAN Clustering (on 2D PCA)', fontsize=13, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+# Final DBSCAN metrics
+db_sil = silhouette_score(X_2d, db_labels)
+db_dbi = davies_bouldin_score(X_2d, db_labels)
+db_chi = calinski_harabasz_score(X_2d, db_labels)
+db_ari = adjusted_rand_score(y_all, db_labels)
+db_nmi = normalized_mutual_info_score(y_all, db_labels)
+
+print(f"=== DBSCAN Results (eps={best_eps}) ===")
+print(f"Clusters found      : {dbscan_results[best_eps]['n_clusters']}")
+print(f"Noise points        : {dbscan_results[best_eps]['n_noise']}")
+print(f"Silhouette Score    : {db_sil:.4f}")
+print(f"Davies-Bouldin Index: {db_dbi:.4f}")
+print(f"Adjusted Rand Index : {db_ari:.4f}")
+
