@@ -1,0 +1,55 @@
+{
+ "nbformat": 4,
+ "nbformat_minor": 4,
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.10.0"
+  }
+ },
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "---\n## 🎯 Step 5 — K-Means Clustering"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "**How K-Means works:** Randomly places K centroids, assigns each point to the nearest centroid, moves centroids to the mean of their points, repeats until stable.\n\n**Hyperparameter to tune:** Number of clusters K → we use the **Elbow Method** and **Silhouette Score** to find the best K."
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": "import numpy as np\nimport pandas as pd\nimport matplotlib.pyplot as plt\nfrom sklearn.cluster import KMeans\nfrom sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, adjusted_rand_score, normalized_mutual_info_score\n\n# Assuming X_pca and y_all are already loaded from previous steps\n# If not, uncomment and adjust the paths below:\n# pca_df = pd.read_csv('pca_features.csv')\n# y_all = pd.read_csv('labels.csv').values.ravel()\n# X_pca = pca_df.values\n# X_2d = X_pca[:, :2]"
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": "# Hyperparameter tuning: find best K\ninertias, silhouettes = [], []\nK_range = range(2, 11)\n\nfor k in K_range:\n    km = KMeans(n_clusters=k, init='k-means++', n_init=10, random_state=42)\n    labels = km.fit_predict(X_pca)\n    inertias.append(km.inertia_)\n    silhouettes.append(silhouette_score(X_pca, labels))\n\nfig, axes = plt.subplots(1, 2, figsize=(13, 5))\naxes[0].plot(K_range, inertias, 'bo-', linewidth=2, markersize=6)\naxes[0].set_title('Elbow Method — Inertia vs K', fontweight='bold')\naxes[0].set_xlabel('Number of Clusters (K)')\naxes[0].set_ylabel('Inertia')\n\nbest_k = list(K_range)[np.argmax(silhouettes)]\naxes[1].plot(K_range, silhouettes, 'ro-', linewidth=2, markersize=6)\naxes[1].axvline(best_k, color='green', linestyle='--', linewidth=1.5)\naxes[1].set_title(f'Silhouette Score vs K (best K={best_k})', fontweight='bold')\naxes[1].set_xlabel('Number of Clusters (K)')\naxes[1].set_ylabel('Silhouette Score')\n\nplt.suptitle('K-Means Hyperparameter Tuning', fontsize=13, fontweight='bold')\nplt.tight_layout()\nplt.show()\n\nprint(f\"Best K by Silhouette: {best_k}\")"
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": "# Train final K-Means with best K\nkm_final = KMeans(n_clusters=best_k, init='k-means++', n_init=10, random_state=42)\nkm_labels = km_final.fit_predict(X_pca)\n\n# Metrics\nkm_sil = silhouette_score(X_pca, km_labels)\nkm_dbi = davies_bouldin_score(X_pca, km_labels)\nkm_chi = calinski_harabasz_score(X_pca, km_labels)\nkm_ari = adjusted_rand_score(y_all, km_labels)\nkm_nmi = normalized_mutual_info_score(y_all, km_labels)\n\nprint(\"=== K-Means Results ===\")\nprint(f\"Silhouette Score    : {km_sil:.4f}  (higher = better, max=1)\")\nprint(f\"Davies-Bouldin Index: {km_dbi:.4f}  (lower = better)\")\nprint(f\"Calinski-Harabasz  : {km_chi:.2f} (higher = better)\")\nprint(f\"Adjusted Rand Index : {km_ari:.4f}  (vs ground truth)\")\nprint(f\"Norm. Mutual Info  : {km_nmi:.4f}  (vs ground truth)\")"
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": "# Visualise K-Means clusters in PCA 2D space\nfig, axes = plt.subplots(1, 2, figsize=(14, 5))\nscatter = axes[0].scatter(X_2d[:,0], X_2d[:,1], c=km_labels,\n                          cmap='tab10', alpha=0.4, s=8)\naxes[0].set_title(f'K-Means Clusters (k={best_k})', fontweight='bold')\naxes[0].set_xlabel('PC1'); axes[0].set_ylabel('PC2')\nplt.colorbar(scatter, ax=axes[0])\n\naxes[1].scatter(X_2d[:,0], X_2d[:,1], c=y_all.map({1:0,-1:1}),\n                cmap='bwr', alpha=0.4, s=8)\naxes[1].set_title('Ground Truth Labels', fontweight='bold')\naxes[1].set_xlabel('PC1'); axes[1].set_ylabel('PC2')\n\nplt.suptitle('K-Means vs Ground Truth (PCA 2D)', fontsize=13, fontweight='bold')\nplt.tight_layout()\nplt.show()"
+  }
+ ]
+}
